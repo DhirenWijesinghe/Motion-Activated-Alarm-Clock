@@ -20,15 +20,15 @@
 // initialize the library with the numbers of the interface pins
 LiquidCrystal lcd(19, 23, 18, 17, 16, 15);
 
-const char* ssid     = "Dhiren's iPhone";
-const char* password = "dhirenw1";
+const char* ssid     = "MySpectrumWiFi59-2G";
+const char* password = "degreemajor450";
 
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = -21600;
+const long  gmtOffset_sec = -21600/2;
 const int   daylightOffset_sec = 3600;
 
 // the number of the LED pin
-const int buzzer = 21;  // 16 corresponds to GPIO16
+const int buzzer = 4;  // 16 corresponds to GPIO16
 
 // setting PWM properties
 const int freq = 2000;
@@ -274,15 +274,12 @@ void initRtc() {
 
   // set time if power was lost
   if (rtc.lostPower()) {
-    Serial.println("Setting RTC Time");
+//    Serial.println("Setting RTC Time");
     // set based on current_time variable
     // rtc.adjust(DateTime(current_time));
 
     // set it to a time info struct to get the breakdown of second/minute/ etc...
     // turn that into a datetime to pass to RTC
-
-    timeinfo = localtime( &current_t );
-    rtc.adjust(DateTime(timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_hour, timeinfo->tm_sec));
     
   }
 }
@@ -297,10 +294,14 @@ void getLocalTime(void * pvParameters){
       xSemaphoreGive(time_mutex);
       return;
     }
-    current_t = mktime(&current_time);   // Add 1s to time to account for overhead
+//    current_t = mktime(&current_time);   // Add 1s to time to account for overhead
     xSemaphoreGive(time_mutex);
     Serial.println("Updating Current Time");
     WiFi.mode( WIFI_OFF );
+//    timeinfo = localtime( &current_t );
+    Serial.println(timeinfo->tm_year);
+//    rtc.adjust(DateTime(timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec));
+    rtc.adjust(DateTime(current_time.tm_year+1900, current_time.tm_mon+1, current_time.tm_mday, current_time.tm_hour, current_time.tm_min, current_time.tm_sec));
     vTaskDelete(NULL);
   }
 }
@@ -407,7 +408,7 @@ void setup()
     EEPROM.begin(EEPROM_SIZE);
     alarm_time.tm_hour = EEPROM.read(0);
     alarm_time.tm_min = EEPROM.read(1);
-
+    initRtc();
     // Init WiFi and wait until it's started up
     initWiFi();
     delay(1000);
