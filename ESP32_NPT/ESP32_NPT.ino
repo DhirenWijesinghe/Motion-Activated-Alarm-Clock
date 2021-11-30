@@ -15,19 +15,20 @@
 #include <NimBLEAddress.h>
 #include <LiquidCrystal.h>
 #include <EEPROM.h>
+#include "RTClib.h"
 
 // initialize the library with the numbers of the interface pins
 LiquidCrystal lcd(19, 23, 18, 17, 16, 15);
 
-const char* ssid     = "Dhiren's iPhone";
-const char* password = "dhirenw1";
+const char* ssid     = "MySpectrumWiFi59-2G";
+const char* password = "degreemajor450";
 
 const char* ntpServer = "pool.ntp.org";
-const long  gmtOffset_sec = -21600;
+const long  gmtOffset_sec = -21600/2;
 const int   daylightOffset_sec = 3600;
 
 // the number of the LED pin
-const int buzzer = 21;  // 16 corresponds to GPIO16
+const int buzzer = 4;  // 16 corresponds to GPIO16
 
 // setting PWM properties
 const int freq = 2000;
@@ -49,6 +50,8 @@ const TickType_t xDelay1s = pdMS_TO_TICKS(1000);
 // Declare semaphores
 static SemaphoreHandle_t time_mutex;     // Waits for parameter to be read
 static SemaphoreHandle_t alarm_mutex;     // Mutex to control who get's to access alarm value
+
+RTC_DS3231 rtc;
 
 
 // See the following for generating UUIDs:
@@ -263,6 +266,24 @@ void initBLEServer(){
   BLEDevice::startAdvertising();
 }
 
+void initRtc() {
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1) delay(10);  // stay here
+  }
+
+  // set time if power was lost
+  if (rtc.lostPower()) {
+//    Serial.println("Setting RTC Time");
+    // set based on current_time variable
+    // rtc.adjust(DateTime(current_time));
+
+    // set it to a time info struct to get the breakdown of second/minute/ etc...
+    // turn that into a datetime to pass to RTC
+    
+  }
+}
+
 void getLocalTime(void * pvParameters){
 //  struct tm timeinfo;
   while(1){
@@ -273,10 +294,14 @@ void getLocalTime(void * pvParameters){
       xSemaphoreGive(time_mutex);
       return;
     }
-    current_t = mktime(&current_time);   // Add 1s to time to account for overhead
+//    current_t = mktime(&current_time);   // Add 1s to time to account for overhead
     xSemaphoreGive(time_mutex);
     Serial.println("Updating Current Time");
     WiFi.mode( WIFI_OFF );
+//    timeinfo = localtime( &current_t );
+    Serial.println(timeinfo->tm_year);
+//    rtc.adjust(DateTime(timeinfo->tm_year, timeinfo->tm_mon, timeinfo->tm_mday, timeinfo->tm_hour, timeinfo->tm_min, timeinfo->tm_sec));
+    rtc.adjust(DateTime(current_time.tm_year+1900, current_time.tm_mon+1, current_time.tm_mday, current_time.tm_hour, current_time.tm_min, current_time.tm_sec));
     vTaskDelete(NULL);
   }
 }
@@ -314,8 +339,18 @@ void IncrementClock(void * pvParameters){
     // If current time is 0:00 (midnight), poll the NPT to update current time
     // Uses semaphore for critical section when reading current time
     xSemaphoreTake(time_mutex, portMAX_DELAY);
-    current_t += 1;
-    timeinfo = localtime ( &current_t );
+    // current_t += 1;
+    // DateTime rtc_time = rtc.now();
+    // uint32_t unix_time = rtc_time.unixtime();
+    // timeinfo = localtime ( &unix_time );
+
+    // get time into a datetime
+    // convert to the tm struct
+    DateTime now = rtc.now();
+    time_t unix_time = now.unixtime();
+    timeinfo = localtime ( &unix_time );
+    
+
     Serial.println(timeinfo, "%A, %B %d %Y %H:%M:%S");
     // Write time to LCD
     lcd.setCursor(0,0);
@@ -361,15 +396,19 @@ void IncrementClock(void * pvParameters){
   }
 }
 
+// setup for running the main program
 void setup()
 {      
     Serial.begin(115200);
+    delay(1000);
+    Serial.println("Starting...");
+    
 
     // initialize EEPROM with predefined size
     EEPROM.begin(EEPROM_SIZE);
     alarm_time.tm_hour = EEPROM.read(0);
     alarm_time.tm_min = EEPROM.read(1);
-
+    initRtc();
     // Init WiFi and wait until it's started up
     initWiFi();
     delay(1000);
@@ -406,6 +445,13 @@ void setup()
     Serial.println("Waiting for wifi");
     initBLEServer();
     initBLEClient();
+}
+
+// setup for testing time functionality
+void setup_rtc() {
+    Serial.begin(115200);
+    delay(1000);
+    Serial.println("Starting...");
 }
 
 void loop(){
